@@ -33,7 +33,7 @@ type Result struct {
 
 // Main
 func main() {
-	db, err = gorm.Open("mysql", "root:@/go_api_crud?charset=utf8&parseTime=True")
+	db, err = gorm.Open("mysql", "root:@/go_rest_api_crud?charset=utf8&parseTime=True")
 
 	if err != nil {
 		log.Println("Connection failed", err)
@@ -49,6 +49,25 @@ func handleRequests() {
 	log.Println("Start the development server at http://127.0.0.1:9999")
 
 	myRouter := mux.NewRouter().StrictSlash(true)
+
+	myRouter.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+
+		res := Result{Code: 404, Message: "Method not found"}
+		response, _ := json.Marshal(res)
+		w.Write(response)
+	})
+
+	myRouter.MethodNotAllowedHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+
+		res := Result{Code: 403, Message: "Method not allowed"}
+		response, _ := json.Marshal(res)
+		w.Write(response)
+	})
+
 	myRouter.HandleFunc("/", homePage)
 	myRouter.HandleFunc("/api/products", createProduct).Methods("POST")
 	myRouter.HandleFunc("/api/products", getProducts).Methods("GET")
@@ -68,18 +87,19 @@ func createProduct(w http.ResponseWriter, r *http.Request) {
 
 	var product Product
 	json.Unmarshal(payloads, &product)
+
 	db.Create(&product)
 
-	// price, _ := decimal.NewFromString("5000000.00")
-	// db.Create(&Product{Code: "AB234234", Name: "Sepeda polygon", Price: price})
+	res := Result{Code: 200, Data: product, Message: "Success create product"}
+	result, err := json.Marshal(res)
 
-	fmt.Println(product)
-	fmt.Println("Endpoint hit: create new product")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-
-	json.NewEncoder(w).Encode(product)
+	w.Write(result)
 }
 
 func getProducts(w http.ResponseWriter, r *http.Request) {
@@ -98,8 +118,6 @@ func getProducts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(results)
-
-	// json.NewEncoder(w).Encode(products)
 }
 
 func getProduct(w http.ResponseWriter, r *http.Request) {
